@@ -3,6 +3,7 @@
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/helpers/memory/Memory.hpp>
 #include <hyprland/src/Compositor.hpp>
+#include <hyprland/src/debug/log/Logger.hpp>
 
 #include "OrientationTileAlgorithm.hpp"
 #include "globals.hpp"
@@ -40,7 +41,8 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         throw std::runtime_error("[orientation-tile] addTiledAlgo failed");
     }
 
-    HyprlandAPI::addNotification(PHANDLE, "[orientation-tile v3-debug] loaded — set general:layout = orientationtile", CHyprColor{0.2, 1.0, 0.2, 1.0}, 4000);
+    Log::logger->log(Log::ERR, "[orientation-tile/dbg] v4-log LOADED — set general:layout = orientationtile");
+    HyprlandAPI::addNotification(PHANDLE, "[orientation-tile v4-log] loaded — set general:layout = orientationtile", CHyprColor{0.2, 1.0, 0.2, 1.0}, 4000);
 
     HyprlandAPI::reloadConfig();
 
