@@ -1,0 +1,11 @@
+[repository]
+name = "orientation-tile"
+authors = ["Hannes"]
+
+[orientation-tile]
+description = "Orientation-aware tiling: rows on landscape monitors, columns on portrait monitors."
+authors = ["Hannes"]
+output = "orientation-tile.so"
+build = [
+    "make all",
+]

@@ -1,0 +1,59 @@
+#pragma once
+
+#include <hyprland/src/layout/algorithm/TiledAlgorithm.hpp>
+
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+// Orientation-aware tiled layout.
+//
+// One instance exists per workspace (CSpace). Windows are arranged along a
+// single axis chosen from the workspace's monitor:
+//   * landscape monitor (width >= height) -> horizontal row
+//   * portrait  monitor (height > width)  -> vertical column
+//
+// Windows share the axis equally by default. Each window carries a `weight`
+// (a fraction of the axis; weights across the workspace sum to 1) so it can be
+// resized with the mouse or `resizeactive`, redistributing space with a
+// neighbour.
+class COrientationTileAlgorithm : public Layout::ITiledAlgorithm {
+  public:
+    COrientationTileAlgorithm()           = default;
+    ~COrientationTileAlgorithm() override = default;
+
+    void                       newTarget(SP<Layout::ITarget> target) override;
+    void                       movedTarget(SP<Layout::ITarget> target, std::optional<Vector2D> focalPoint = std::nullopt) override;
+    void                       removeTarget(SP<Layout::ITarget> target) override;
+
+    void                       resizeTarget(const Vector2D& delta, SP<Layout::ITarget> target, Layout::eRectCorner corner = Layout::CORNER_NONE) override;
+    void                       recalculate(Layout::eRecalculateReason reason = Layout::RECALCULATE_REASON_UNKNOWN) override;
+
+    SP<Layout::ITarget>        getNextCandidate(SP<Layout::ITarget> old) override;
+
+    Config::ErrorResult        layoutMsg(const std::string_view& sv) override;
+    std::optional<Vector2D>    predictSizeForNewTarget() override;
+
+    void                       swapTargets(SP<Layout::ITarget> a, SP<Layout::ITarget> b) override;
+    void                       moveTargetInDirection(SP<Layout::ITarget> t, Math::eDirection dir, bool silent) override;
+
+    std::optional<std::string> layoutName() const override;
+
+  private:
+    struct SNode {
+        WP<Layout::ITarget> target;
+        double              weight = 0.0; // share of the axis; weights across nodes sum to 1
+    };
+
+    std::vector<SP<SNode>> m_nodes;
+    bool                   m_forceWarps = false; // snap (don't animate) during interactive resize
+
+    SP<Layout::CSpace>     space() const;
+    bool                   isColumn() const; // true => stack vertically (portrait)
+
+    SP<SNode>              nodeFor(SP<Layout::ITarget> t) const;
+    int                    indexOf(SP<Layout::ITarget> t) const;
+    void                   insertAt(SP<Layout::ITarget> target, int index);
+    void                   renormalize();
+};
