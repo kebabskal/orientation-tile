@@ -40,7 +40,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         throw std::runtime_error("[orientation-tile] addTiledAlgo failed");
     }
 
-    HyprlandAPI::addNotification(PHANDLE, "[orientation-tile] loaded. Set: general:layout = orientationtile", CHyprColor{0.2, 1.0, 0.2, 1.0}, 4000);
+    HyprlandAPI::addNotification(PHANDLE, "[orientation-tile v3-debug] loaded — set general:layout = orientationtile", CHyprColor{0.2, 1.0, 0.2, 1.0}, 4000);
 
     HyprlandAPI::reloadConfig();
 

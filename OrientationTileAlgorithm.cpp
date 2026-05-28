@@ -140,27 +140,36 @@ int COrientationTileAlgorithm::dropIndexFor(std::optional<Vector2D> focalPoint) 
 // ---- IModeAlgorithm / ITiledAlgorithm -------------------------------------
 
 void COrientationTileAlgorithm::newTarget(SP<ITarget> target) {
-    // Brand-new windows always append — predictable, and matches the bulk re-add
-    // Hyprland does when switching layouts.
-    insertAt(target, static_cast<int>(m_nodes.size()));
+    const int idx = static_cast<int>(m_nodes.size());
+
+    // DEBUG (v3): trace which callback Hyprland uses on drag-end
+    HyprlandAPI::addNotification(PHANDLE, std::format("OT newTarget → append @ {}/{}", idx, m_nodes.size() + 1),
+                                 CHyprColor{0.3, 1.0, 0.4, 1.0}, 2500);
+
+    insertAt(target, idx);
     recalculate();
 }
 
 void COrientationTileAlgorithm::movedTarget(SP<ITarget> target, std::optional<Vector2D> focalPoint) {
     const int idx = dropIndexFor(focalPoint);
 
-    // DEBUG: confirm we got here with the expected index. Remove once verified.
-    HyprlandAPI::addNotification(
-        PHANDLE,
-        std::format("orientationtile: movedTarget focal={} → idx {}/{}", focalPoint.has_value(), idx, m_nodes.size()),
-        CHyprColor{0.4, 0.8, 1.0, 1.0}, 2500);
+    // DEBUG (v3)
+    HyprlandAPI::addNotification(PHANDLE,
+                                 std::format("OT movedTarget focal={} → idx {}/{}", focalPoint.has_value(), idx, m_nodes.size() + 1),
+                                 CHyprColor{0.4, 0.8, 1.0, 1.0}, 2500);
 
     insertAt(target, idx);
     recalculate();
 }
 
 void COrientationTileAlgorithm::removeTarget(SP<ITarget> target) {
+    const size_t before = m_nodes.size();
     std::erase_if(m_nodes, [&](const auto& n) { return n->target.lock() == target; });
+    const size_t after = m_nodes.size();
+
+    // DEBUG (v3)
+    HyprlandAPI::addNotification(PHANDLE, std::format("OT removeTarget {} → {}", before, after), CHyprColor{1.0, 0.6, 0.2, 1.0}, 2500);
+
     renormalize();
     recalculate();
 }
@@ -352,6 +361,9 @@ void COrientationTileAlgorithm::swapTargets(SP<ITarget> a, SP<ITarget> b) {
         na->target = b;
     if (nb)
         nb->target = a;
+
+    // DEBUG (v3)
+    HyprlandAPI::addNotification(PHANDLE, "OT swapTargets", CHyprColor{0.8, 0.4, 1.0, 1.0}, 2500);
 
     recalculate();
 }
