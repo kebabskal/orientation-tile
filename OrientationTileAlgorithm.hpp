@@ -40,6 +40,11 @@ class COrientationTileAlgorithm : public Layout::ITiledAlgorithm {
 
     std::optional<std::string> layoutName() const override;
 
+    // Per-frame entry point used by the plugin's global tick subscription to
+    // refresh the drag preview as the cursor moves. Idempotent and cheap when
+    // no drag is in progress or the preview index hasn't changed.
+    void                       tick();
+
   private:
     struct SNode {
         WP<Layout::ITarget> target;

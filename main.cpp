@@ -4,6 +4,13 @@
 #include <hyprland/src/helpers/memory/Memory.hpp>
 #include <hyprland/src/Compositor.hpp>
 
+#include <hyprland/src/event/EventBus.hpp>
+#include <hyprland/src/layout/LayoutManager.hpp>
+#include <hyprland/src/layout/algorithm/Algorithm.hpp>
+#include <hyprland/src/layout/space/Space.hpp>
+#include <hyprland/src/desktop/Workspace.hpp>
+#include <hyprland/src/helpers/Monitor.hpp>
+
 #include "OrientationTileAlgorithm.hpp"
 #include "globals.hpp"
 
@@ -41,6 +48,34 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     }
 
     HyprlandAPI::addNotification(PHANDLE, "[orientation-tile] loaded — set general:layout = orientationtile", CHyprColor{0.2, 1.0, 0.2, 1.0}, 4000);
+
+    // Per-frame hook so the drag preview can follow the cursor. The static keeps
+    // the subscription alive for the plugin's lifetime; its destructor (run when
+    // dlclose tears the .so down on plugin unload) unsubscribes cleanly.
+    static auto TICK_LISTENER = Event::bus()->m_events.tick.listen([] {
+        if (!g_layoutManager)
+            return;
+
+        const auto& DRAG = g_layoutManager->dragController();
+        if (!DRAG || DRAG->mode() != MBIND_MOVE || !DRAG->draggingTiled())
+            return;
+
+        if (!g_pCompositor)
+            return;
+
+        for (const auto& m : g_pCompositor->m_monitors) {
+            if (!m || !m->m_activeWorkspace || !m->m_activeWorkspace->m_space)
+                continue;
+            const auto algo = m->m_activeWorkspace->m_space->algorithm();
+            if (!algo)
+                continue;
+            const auto& tiled = algo->tiledAlgo();
+            if (!tiled)
+                continue;
+            if (auto* orient = dynamic_cast<COrientationTileAlgorithm*>(tiled.get()))
+                orient->tick();
+        }
+    });
 
     HyprlandAPI::reloadConfig();
 

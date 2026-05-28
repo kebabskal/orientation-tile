@@ -453,3 +453,12 @@ void COrientationTileAlgorithm::moveTargetInDirection(SP<ITarget> t, Math::eDire
 std::optional<std::string> COrientationTileAlgorithm::layoutName() const {
     return "orientationtile";
 }
+
+void COrientationTileAlgorithm::tick() {
+    const int prev = m_previewIndex;
+    updateDragPreview();
+    if (m_previewIndex == prev)
+        return;
+    // preview state changed — re-lay out so the gap opens/closes/moves
+    recalculate(RECALCULATE_REASON_UNKNOWN);
+}
