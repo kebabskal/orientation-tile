@@ -17,6 +17,8 @@
 #include <hyprutils/string/VarList2.hpp>
 #include <hyprutils/utils/ScopeGuard.hpp>
 
+#include <hyprland/src/plugins/PluginAPI.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <format>
@@ -105,23 +107,18 @@ void COrientationTileAlgorithm::insertAt(SP<ITarget> target, int index) {
 }
 
 int COrientationTileAlgorithm::dropIndexFor(std::optional<Vector2D> focalPoint) const {
-    // 1. caller-supplied focal point wins (typically a cross-monitor move)
-    std::optional<Vector2D> coord = focalPoint;
+    // Caller's focal point wins (cross-monitor moves), otherwise use the cursor.
+    // movedTarget's actual callers (toggleTargetFloating from DragController::dragEnd,
+    // cross-space moves) all want a position-based insert, so this is safe.
+    const Vector2D coord = focalPoint.value_or(g_pInputManager->getMouseCoordsInternal());
 
-    // 2. if a mouse-move drag is in progress / just released, honour the cursor
-    if (!coord.has_value() && g_layoutManager) {
-        const auto& DRAG = g_layoutManager->dragController();
-        if (DRAG && (DRAG->wasDraggingWindow() || DRAG->mode() == MBIND_MOVE))
-            coord = g_pInputManager->getMouseCoordsInternal();
-    }
-
-    if (!coord.has_value() || m_nodes.empty())
-        return static_cast<int>(m_nodes.size()); // 3. otherwise append
+    if (m_nodes.empty())
+        return 0;
 
     // walk the stack along the layout axis: insert before the first node whose
     // midpoint is past the cursor (windows are already in axis-sorted order).
     const bool   COL = isColumn();
-    const double p   = COL ? coord->y : coord->x;
+    const double p   = COL ? coord.y : coord.x;
 
     int index = 0;
     for (const auto& n : m_nodes) {
@@ -143,15 +140,22 @@ int COrientationTileAlgorithm::dropIndexFor(std::optional<Vector2D> focalPoint) 
 // ---- IModeAlgorithm / ITiledAlgorithm -------------------------------------
 
 void COrientationTileAlgorithm::newTarget(SP<ITarget> target) {
-    // Default: append. But if a mouse-move drag is active (e.g. user is mid-drag
-    // when this fires), dropIndexFor honours the cursor so the window lands
-    // where they released it.
-    insertAt(target, dropIndexFor(std::nullopt));
+    // Brand-new windows always append — predictable, and matches the bulk re-add
+    // Hyprland does when switching layouts.
+    insertAt(target, static_cast<int>(m_nodes.size()));
     recalculate();
 }
 
 void COrientationTileAlgorithm::movedTarget(SP<ITarget> target, std::optional<Vector2D> focalPoint) {
-    insertAt(target, dropIndexFor(focalPoint));
+    const int idx = dropIndexFor(focalPoint);
+
+    // DEBUG: confirm we got here with the expected index. Remove once verified.
+    HyprlandAPI::addNotification(
+        PHANDLE,
+        std::format("orientationtile: movedTarget focal={} → idx {}/{}", focalPoint.has_value(), idx, m_nodes.size()),
+        CHyprColor{0.4, 0.8, 1.0, 1.0}, 2500);
+
+    insertAt(target, idx);
     recalculate();
 }
 
