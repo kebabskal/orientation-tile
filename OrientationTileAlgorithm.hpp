@@ -56,4 +56,10 @@ class COrientationTileAlgorithm : public Layout::ITiledAlgorithm {
     int                    indexOf(SP<Layout::ITarget> t) const;
     void                   insertAt(SP<Layout::ITarget> target, int index);
     void                   renormalize();
+
+    // Pick where a (re)inserted window should land along the axis:
+    //   * if a focalPoint is provided (e.g. cross-monitor move), use it
+    //   * else if the user just released a mouse-move drag, use the cursor
+    //   * else append at the end (predictable for plain new windows / layout switches)
+    int                    dropIndexFor(std::optional<Vector2D> focalPoint) const;
 };

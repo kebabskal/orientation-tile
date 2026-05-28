@@ -10,6 +10,7 @@
 #include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/desktop/view/Window.hpp>
 #include <hyprland/src/helpers/Monitor.hpp>
+#include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/Compositor.hpp>
 
@@ -103,40 +104,54 @@ void COrientationTileAlgorithm::insertAt(SP<ITarget> target, int index) {
     renormalize();
 }
 
+int COrientationTileAlgorithm::dropIndexFor(std::optional<Vector2D> focalPoint) const {
+    // 1. caller-supplied focal point wins (typically a cross-monitor move)
+    std::optional<Vector2D> coord = focalPoint;
+
+    // 2. if a mouse-move drag is in progress / just released, honour the cursor
+    if (!coord.has_value() && g_layoutManager) {
+        const auto& DRAG = g_layoutManager->dragController();
+        if (DRAG && (DRAG->wasDraggingWindow() || DRAG->mode() == MBIND_MOVE))
+            coord = g_pInputManager->getMouseCoordsInternal();
+    }
+
+    if (!coord.has_value() || m_nodes.empty())
+        return static_cast<int>(m_nodes.size()); // 3. otherwise append
+
+    // walk the stack along the layout axis: insert before the first node whose
+    // midpoint is past the cursor (windows are already in axis-sorted order).
+    const bool   COL = isColumn();
+    const double p   = COL ? coord->y : coord->x;
+
+    int index = 0;
+    for (const auto& n : m_nodes) {
+        const auto T = n->target.lock();
+        if (!T) {
+            ++index;
+            continue;
+        }
+        const auto   BOX = T->position();
+        const double mid = COL ? BOX.middle().y : BOX.middle().x;
+        if (p > mid)
+            ++index;
+        else
+            break;
+    }
+    return index;
+}
+
 // ---- IModeAlgorithm / ITiledAlgorithm -------------------------------------
 
 void COrientationTileAlgorithm::newTarget(SP<ITarget> target) {
-    // append at the end of the row/column — predictable and stable across
-    // layout switches (Hyprland re-adds every window via newTarget on switch).
-    insertAt(target, static_cast<int>(m_nodes.size()));
+    // Default: append. But if a mouse-move drag is active (e.g. user is mid-drag
+    // when this fires), dropIndexFor honours the cursor so the window lands
+    // where they released it.
+    insertAt(target, dropIndexFor(std::nullopt));
     recalculate();
 }
 
 void COrientationTileAlgorithm::movedTarget(SP<ITarget> target, std::optional<Vector2D> focalPoint) {
-    int index = static_cast<int>(m_nodes.size());
-
-    // if dragged in from another monitor, drop it where the cursor is along the axis
-    if (focalPoint.has_value() && !m_nodes.empty()) {
-        const bool   COL = isColumn();
-        const double fp  = COL ? focalPoint->y : focalPoint->x;
-
-        index = 0;
-        for (const auto& n : m_nodes) {
-            const auto T = n->target.lock();
-            if (!T) {
-                ++index;
-                continue;
-            }
-            const auto   BOX = T->position();
-            const double mid = COL ? BOX.middle().y : BOX.middle().x;
-            if (fp > mid)
-                ++index;
-            else
-                break;
-        }
-    }
-
-    insertAt(target, index);
+    insertAt(target, dropIndexFor(focalPoint));
     recalculate();
 }
 
