@@ -49,6 +49,12 @@ class COrientationTileAlgorithm : public Layout::ITiledAlgorithm {
     std::vector<SP<SNode>> m_nodes;
     bool                   m_forceWarps = false; // snap (don't animate) during interactive resize
 
+    // Live drag preview: while a tile-mode drag is in progress and the cursor is
+    // over this workspace, m_previewIndex holds the predicted drop index and
+    // recalculate() lays out N+1 slots so the other windows make room. -1 = no
+    // preview, lay out the N real windows normally.
+    int                    m_previewIndex = -1;
+
     SP<Layout::CSpace>     space() const;
     bool                   isColumn() const; // true => stack vertically (portrait)
 
@@ -62,4 +68,8 @@ class COrientationTileAlgorithm : public Layout::ITiledAlgorithm {
     //   * else if the user just released a mouse-move drag, use the cursor
     //   * else append at the end (predictable for plain new windows / layout switches)
     int                    dropIndexFor(std::optional<Vector2D> focalPoint) const;
+
+    // Read the DragController + cursor and update m_previewIndex. Called from
+    // recalculate() on each render frame; cheap when nothing changed.
+    void                   updateDragPreview();
 };

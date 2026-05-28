@@ -104,6 +104,47 @@ void COrientationTileAlgorithm::insertAt(SP<ITarget> target, int index) {
     renormalize();
 }
 
+void COrientationTileAlgorithm::updateDragPreview() {
+    m_previewIndex = -1; // default: no preview
+
+    if (!g_layoutManager)
+        return;
+
+    const auto& DRAG = g_layoutManager->dragController();
+    if (!DRAG)
+        return;
+
+    // only show preview for tile-mode drags (the drop-back-to-tiled path)
+    if (DRAG->mode() != MBIND_MOVE || !DRAG->draggingTiled())
+        return;
+
+    const auto target = DRAG->target();
+    if (!target)
+        return;
+
+    // if the dragged window is already a tiled node here, the drop already
+    // landed and we shouldn't be drawing a phantom gap next to it.
+    if (indexOf(target) >= 0)
+        return;
+
+    const auto SPACE = space();
+    if (!SPACE || !SPACE->workspace())
+        return;
+
+    // only preview on the workspace currently visible on the monitor under the cursor
+    const auto MON = SPACE->workspace()->m_monitor.lock();
+    if (!MON || MON->m_activeWorkspace != SPACE->workspace())
+        return;
+
+    const auto coord = g_pInputManager->getMouseCoordsInternal();
+    const auto MPOS  = MON->m_position;
+    const auto MSIZE = MON->m_size;
+    if (coord.x < MPOS.x || coord.x >= MPOS.x + MSIZE.x || coord.y < MPOS.y || coord.y >= MPOS.y + MSIZE.y)
+        return;
+
+    m_previewIndex = dropIndexFor(std::nullopt);
+}
+
 int COrientationTileAlgorithm::dropIndexFor(std::optional<Vector2D> focalPoint) const {
     // Caller's focal point wins (cross-monitor moves), otherwise use the cursor.
     // movedTarget's actual callers (toggleTargetFloating from DragController::dragEnd,
@@ -221,6 +262,10 @@ void COrientationTileAlgorithm::recalculate(eRecalculateReason reason) {
     // drop any expired targets defensively
     std::erase_if(m_nodes, [](const auto& n) { return !n->target.lock(); });
 
+    // refresh drag-preview state from the cursor on every (re)calculation —
+    // includes the per-frame render-monitor call, so the gap follows the mouse.
+    updateDragPreview();
+
     if (m_nodes.empty())
         return;
 
@@ -248,15 +293,31 @@ void COrientationTileAlgorithm::recalculate(eRecalculateReason reason) {
     const double cross = COL ? WA.w : WA.h;
     const int    N     = static_cast<int>(m_nodes.size());
 
+    // If a drag preview is active, allocate N+1 slots and reserve one as a
+    // phantom gap at m_previewIndex. Existing windows scale to N/(N+1) of their
+    // current share so the gap takes 1/(N+1) — same arithmetic an actual drop
+    // would use, so what you see is what you get.
+    const bool hasPreview = m_previewIndex >= 0 && m_previewIndex <= N;
+    const int  slotCount  = hasPreview ? N + 1 : N;
+    const double scale    = hasPreview ? (double)N / (double)(N + 1) : 1.0;
+    const double phantom  = hasPreview ? 1.0 / (double)(N + 1) : 0.0;
+
     double accFrac = 0.0;
-    for (int i = 0; i < N; ++i) {
-        const auto&  NODE    = m_nodes[i];
+    int    realIdx = 0;
+    for (int slot = 0; slot < slotCount; ++slot) {
+        const bool   isPhantom = hasPreview && slot == m_previewIndex;
+        const double slotFrac  = isPhantom ? phantom : (m_nodes[realIdx]->weight * scale);
+
         const double startPx = std::round(accFrac * total);
-        accFrac += NODE->weight;
-        const double endPx = (i == N - 1) ? total : std::round(accFrac * total);
+        accFrac += slotFrac;
+        const double endPx = (slot == slotCount - 1) ? total : std::round(accFrac * total);
         const double lenPx = std::max(1.0, endPx - startPx);
 
-        const auto T = NODE->target.lock();
+        if (isPhantom)
+            continue; // gap — no window to place
+
+        const auto T = m_nodes[realIdx]->target.lock();
+        ++realIdx;
         if (!T)
             continue;
 
