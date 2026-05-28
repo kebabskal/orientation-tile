@@ -33,8 +33,8 @@ the safe way to get a matching ABI.
 # 1. Make sure hyprpm has the right headers for your Hyprland
 hyprpm update
 
-# 2. Add this folder as a plugin repo (use the absolute path to this directory)
-hyprpm add /path/to/orientation-tile
+# 2. Add this plugin
+hyprpm add https://github.com/kebabskal/orientation-tile
 
 # 3. Enable it
 hyprpm enable orientation-tile
@@ -43,14 +43,14 @@ hyprpm enable orientation-tile
 hyprpm list
 ```
 
-To load it automatically on startup, add to `hyprland.conf`:
+To load it automatically on every Hyprland start, add to your `hyprland.conf`:
 
 ```ini
 exec-once = hyprpm reload
 ```
 
-> If you keep this in a git repo instead, `hyprpm add <git-url>` works too — that's
-> the more usual hyprpm flow. A local path works for iterating.
+> Iterating on the code locally instead? `hyprpm add /absolute/path/to/checkout`
+> works too — point it at a local git repo and it picks up commits on `hyprpm update`.
 
 ## Enable the layout
 

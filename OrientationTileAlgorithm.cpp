@@ -17,14 +17,9 @@
 #include <hyprutils/string/VarList2.hpp>
 #include <hyprutils/utils/ScopeGuard.hpp>
 
-#include <hyprland/src/plugins/PluginAPI.hpp>
-#include <hyprland/src/debug/log/Logger.hpp>
-
 #include <algorithm>
 #include <cmath>
 #include <format>
-
-#define OTLOG(...) Log::logger->log(Log::ERR, "[orientation-tile/dbg] " __VA_ARGS__)
 
 using namespace Layout;
 using namespace Hyprutils::String;
@@ -143,25 +138,22 @@ int COrientationTileAlgorithm::dropIndexFor(std::optional<Vector2D> focalPoint) 
 // ---- IModeAlgorithm / ITiledAlgorithm -------------------------------------
 
 void COrientationTileAlgorithm::newTarget(SP<ITarget> target) {
-    const int idx = static_cast<int>(m_nodes.size());
-    OTLOG("newTarget -> append @ {} (count was {})", idx, m_nodes.size());
-    insertAt(target, idx);
+    // Brand-new windows always append — predictable, and matches the bulk re-add
+    // Hyprland does when switching layouts.
+    insertAt(target, static_cast<int>(m_nodes.size()));
     recalculate();
 }
 
 void COrientationTileAlgorithm::movedTarget(SP<ITarget> target, std::optional<Vector2D> focalPoint) {
-    const auto MC  = g_pInputManager->getMouseCoordsInternal();
-    const int  idx = dropIndexFor(focalPoint);
-    OTLOG("movedTarget focal={} cursor=({:.0f},{:.0f}) -> idx {} (count was {})", focalPoint.has_value(), MC.x, MC.y, idx, m_nodes.size());
-    insertAt(target, idx);
+    // Includes drag-and-drop: DragController::dragEnd routes through
+    // toggleTargetFloating -> setFloating(false) -> movedTarget(target, nullopt),
+    // so dropIndexFor's cursor fallback lands the window where you released it.
+    insertAt(target, dropIndexFor(focalPoint));
     recalculate();
 }
 
 void COrientationTileAlgorithm::removeTarget(SP<ITarget> target) {
-    const size_t before = m_nodes.size();
     std::erase_if(m_nodes, [&](const auto& n) { return n->target.lock() == target; });
-    const size_t after = m_nodes.size();
-    OTLOG("removeTarget {} -> {}", before, after);
     renormalize();
     recalculate();
 }
@@ -353,8 +345,6 @@ void COrientationTileAlgorithm::swapTargets(SP<ITarget> a, SP<ITarget> b) {
         na->target = b;
     if (nb)
         nb->target = a;
-
-    OTLOG("swapTargets a={} b={}", (void*)na.get(), (void*)nb.get());
 
     recalculate();
 }
