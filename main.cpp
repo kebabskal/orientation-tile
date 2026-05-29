@@ -10,6 +10,7 @@
 #include <hyprland/src/layout/space/Space.hpp>
 #include <hyprland/src/desktop/Workspace.hpp>
 #include <hyprland/src/helpers/Monitor.hpp>
+#include <hyprland/src/render/Renderer.hpp>
 
 #include "OrientationTileAlgorithm.hpp"
 #include "globals.hpp"
@@ -70,10 +71,14 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
             if (!tiled)
                 continue;
             if (auto* orient = dynamic_cast<COrientationTileAlgorithm*>(tiled.get())) {
-                // force the renderer to call our recalculate(RENDER_MOINTOR)
-                // next frame, so the drop indicator gets re-emitted while the
-                // monitor is bound and our pass element lands on the right
-                // monitor's render pass.
+                // Force a frame on this monitor so the renderer actually runs.
+                // Without this, slow cursor movements may not damage the
+                // monitor enough to trigger a render, so the indicator wouldn't
+                // refresh frame-to-frame. Then m_scheduledRecalc tells that
+                // render to call recalculate(RENDER_MOINTOR), where we emit
+                // the drop indicator into the right monitor's render pass.
+                if (g_pHyprRenderer)
+                    g_pHyprRenderer->damageMonitor(m);
                 m->m_scheduledRecalc = true;
                 orient->tick();
             }
