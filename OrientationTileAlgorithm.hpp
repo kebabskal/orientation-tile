@@ -40,9 +40,10 @@ class COrientationTileAlgorithm : public Layout::ITiledAlgorithm {
 
     std::optional<std::string> layoutName() const override;
 
-    // Per-frame entry point used by the plugin's global tick subscription to
-    // refresh the drag preview as the cursor moves. Idempotent and cheap when
-    // no drag is in progress or the preview index hasn't changed.
+    // Per-cursor-sample entry point. The plugin's global `input.mouse.move`
+    // listener calls this on each cursor sample (with `tick` as a fallback) so
+    // the drag-preview index can follow the cursor in real time. Idempotent and
+    // cheap when no drag is in progress or the preview index hasn't changed.
     void                       tick();
 
   private:
@@ -75,6 +76,6 @@ class COrientationTileAlgorithm : public Layout::ITiledAlgorithm {
     int                    dropIndexFor(std::optional<Vector2D> focalPoint) const;
 
     // Read the DragController + cursor and update m_previewIndex. Called from
-    // recalculate() on each render frame; cheap when nothing changed.
+    // both tick() and recalculate(); writes -1 when no relevant drag is active.
     void                   updateDragPreview();
 };

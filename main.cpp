@@ -50,11 +50,11 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
     HyprlandAPI::addNotification(PHANDLE, "[orientation-tile] loaded — set general:layout = orientationtile", CHyprColor{0.2, 1.0, 0.2, 1.0}, 4000);
 
-    // mouse.move fires on every cursor sample, independent of the animation
-    // manager. Using `tick` was a mistake: tick is gated on shouldTickForNext()
-    // and a tile-mode drag uses warpPositionSize() (instant snap, no animation),
-    // so tick went silent between cursor wiggles. Mouse-move never goes silent
-    // while the user is moving the mouse.
+    // The drag preview needs to refresh on every cursor sample, but the global
+    // `tick` event is gated on the animation manager having work to do — and a
+    // tile-mode drag uses warpPositionSize() (instant snap, no animation), so
+    // tick goes silent between cursor wiggles. `input.mouse.move` is the
+    // reliable signal: it fires for every pointer event.
     auto kickAlgos = [] {
         if (!g_layoutManager)
             return;
@@ -83,14 +83,14 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
     static auto MOUSE_MOVE_LISTENER = Event::bus()->m_events.input.mouse.move.listen([kickAlgos](const Vector2D&, Event::SCallbackInfo&) { kickAlgos(); });
 
-    // Belt-and-braces: tick still fires when other animations are active and is
-    // cheap enough to keep around as a fallback so the indicator stays alive
-    // for users whose pointer drivers batch sparsely.
+    // Belt-and-braces: tick still fires whenever any animation is running, and
+    // kickAlgos bails out cheaply when no drag is in progress, so it's a free
+    // safety net for pointer drivers that batch samples sparsely.
     static auto TICK_LISTENER = Event::bus()->m_events.tick.listen([kickAlgos] { kickAlgos(); });
 
     HyprlandAPI::reloadConfig();
 
-    return {"orientation-tile", "Orientation-aware tiling: rows on landscape monitors, columns on portrait monitors.", "Hannes", "1.0"};
+    return {"orientation-tile", "Orientation-aware tiling: rows on landscape monitors, columns on portrait monitors.", "Hannes", "1.1"};
 }
 
 APICALL EXPORT void PLUGIN_EXIT() {

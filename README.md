@@ -114,6 +114,11 @@ bind = SUPER, bracketleft,  layoutmsg, swapprev
 
 - **New windows** are appended to the end of the row/column (predictable, and
   stable when you switch layouts — Hyprland re-adds every window on a switch).
+- **Drag preview**: while you're holding a window with `bindm = …, movewindow`,
+  the other tiles on the destination workspace shrink to open a phantom slot
+  where the window will land, and a translucent light-blue rectangle marks that
+  slot. The slot follows the cursor in real time across slots and across
+  monitors; releasing drops the window into the highlighted spot.
 - **Resizing** moves space between the resized window and one neighbour; no window
   shrinks below 5% of the axis.
 - **Gaps** (`general:gaps_in` / `gaps_out`) and reserved areas (bars) are applied
