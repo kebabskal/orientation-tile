@@ -336,42 +336,44 @@ void COrientationTileAlgorithm::recalculate(eRecalculateReason reason) {
     }
 
     // Drop indicator: a translucent rectangle marking the phantom slot.
-    // Only emitted during the renderer's per-monitor recalc, so it lands in the
-    // correct monitor's render pass (m_renderData.pMonitor is bound there).
+    // Only emitted during the renderer's per-monitor recalc, so it lands in
+    // the correct monitor's render pass (m_renderData.pMonitor is bound here).
     if (reason == RECALCULATE_REASON_RENDER_MOINTOR && hasPreview) {
-        const double startFrac = std::clamp((double)m_previewIndex / (double)(N + 1), 0.0, 1.0);
-        const double startPx   = std::round(startFrac * total);
-        const double endPx     = std::round((startFrac + phantom) * total);
-        const double lenPx     = std::max(1.0, endPx - startPx);
+        const auto MON = g_pHyprRenderer->m_renderData.pMonitor;
+        if (MON) {
+            const double startFrac = std::clamp((double)m_previewIndex / (double)(N + 1), 0.0, 1.0);
+            const double startPx   = std::round(startFrac * total);
+            const double endPx     = std::round((startFrac + phantom) * total);
+            const double lenPx     = std::max(1.0, endPx - startPx);
 
-        Vector2D pos, size;
-        if (COL) {
-            pos  = {WA.x, WA.y + startPx};
-            size = {cross, lenPx};
-        } else {
-            pos  = {WA.x + startPx, WA.y};
-            size = {lenPx, cross};
-        }
+            // box in global LOGICAL coords first, matching window placement above
+            Vector2D pos, size;
+            if (COL) {
+                pos  = {WA.x, WA.y + startPx};
+                size = {cross, lenPx};
+            } else {
+                pos  = {WA.x + startPx, WA.y};
+                size = {lenPx, cross};
+            }
 
-        // inset a little so we don't fight gaps_in on adjacent windows
-        constexpr double INSET = 8.0;
-        if (COL) {
-            pos.y += INSET;
-            size.y = std::max(1.0, size.y - 2 * INSET);
+            // inset so we don't fight gaps_in on neighbouring windows
+            constexpr double INSET = 8.0;
             pos.x += INSET;
-            size.x = std::max(1.0, size.x - 2 * INSET);
-        } else {
-            pos.x += INSET;
-            size.x = std::max(1.0, size.x - 2 * INSET);
             pos.y += INSET;
+            size.x = std::max(1.0, size.x - 2 * INSET);
             size.y = std::max(1.0, size.y - 2 * INSET);
-        }
 
-        CRectPassElement::SRectData data;
-        data.box   = CBox{pos, size};
-        data.color = CHyprColor{0.35, 0.65, 1.0, 0.30};
-        data.round = 12;
-        g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(std::move(data)));
+            // CRectPassElement wants the box in monitor-local transformed-pixel
+            // coords: translate global -> monitor-local, then multiply by scale.
+            CBox box{pos.x - MON->m_position.x, pos.y - MON->m_position.y, size.x, size.y};
+            box.scale(MON->m_scale).round();
+
+            CRectPassElement::SRectData data;
+            data.box   = box;
+            data.color = CHyprColor{0.35, 0.65, 1.0, 0.30};
+            data.round = std::round(12.0 * MON->m_scale);
+            g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(std::move(data)));
+        }
     }
 }
 
