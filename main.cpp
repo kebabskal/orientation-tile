@@ -50,17 +50,19 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
     HyprlandAPI::addNotification(PHANDLE, "[orientation-tile] loaded — set general:layout = orientationtile", CHyprColor{0.2, 1.0, 0.2, 1.0}, 4000);
 
-    static auto TICK_LISTENER = Event::bus()->m_events.tick.listen([] {
+    // mouse.move fires on every cursor sample, independent of the animation
+    // manager. Using `tick` was a mistake: tick is gated on shouldTickForNext()
+    // and a tile-mode drag uses warpPositionSize() (instant snap, no animation),
+    // so tick went silent between cursor wiggles. Mouse-move never goes silent
+    // while the user is moving the mouse.
+    auto kickAlgos = [] {
         if (!g_layoutManager)
             return;
-
         const auto& DRAG = g_layoutManager->dragController();
         if (!DRAG || DRAG->mode() != MBIND_MOVE || !DRAG->draggingTiled())
             return;
-
         if (!g_pCompositor)
             return;
-
         for (const auto& m : g_pCompositor->m_monitors) {
             if (!m || !m->m_activeWorkspace || !m->m_activeWorkspace->m_space)
                 continue;
@@ -71,19 +73,20 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
             if (!tiled)
                 continue;
             if (auto* orient = dynamic_cast<COrientationTileAlgorithm*>(tiled.get())) {
-                // Force a frame on this monitor so the renderer actually runs.
-                // Without this, slow cursor movements may not damage the
-                // monitor enough to trigger a render, so the indicator wouldn't
-                // refresh frame-to-frame. Then m_scheduledRecalc tells that
-                // render to call recalculate(RENDER_MOINTOR), where we emit
-                // the drop indicator into the right monitor's render pass.
                 if (g_pHyprRenderer)
                     g_pHyprRenderer->damageMonitor(m);
                 m->m_scheduledRecalc = true;
                 orient->tick();
             }
         }
-    });
+    };
+
+    static auto MOUSE_MOVE_LISTENER = Event::bus()->m_events.input.mouse.move.listen([kickAlgos](const Vector2D&, Event::SCallbackInfo&) { kickAlgos(); });
+
+    // Belt-and-braces: tick still fires when other animations are active and is
+    // cheap enough to keep around as a fallback so the indicator stays alive
+    // for users whose pointer drivers batch sparsely.
+    static auto TICK_LISTENER = Event::bus()->m_events.tick.listen([kickAlgos] { kickAlgos(); });
 
     HyprlandAPI::reloadConfig();
 
