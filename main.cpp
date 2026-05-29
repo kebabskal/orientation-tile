@@ -49,9 +49,6 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
     HyprlandAPI::addNotification(PHANDLE, "[orientation-tile] loaded — set general:layout = orientationtile", CHyprColor{0.2, 1.0, 0.2, 1.0}, 4000);
 
-    // Per-frame hook so the drag preview can follow the cursor. The static keeps
-    // the subscription alive for the plugin's lifetime; its destructor (run when
-    // dlclose tears the .so down on plugin unload) unsubscribes cleanly.
     static auto TICK_LISTENER = Event::bus()->m_events.tick.listen([] {
         if (!g_layoutManager)
             return;
@@ -72,8 +69,14 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
             const auto& tiled = algo->tiledAlgo();
             if (!tiled)
                 continue;
-            if (auto* orient = dynamic_cast<COrientationTileAlgorithm*>(tiled.get()))
+            if (auto* orient = dynamic_cast<COrientationTileAlgorithm*>(tiled.get())) {
+                // force the renderer to call our recalculate(RENDER_MOINTOR)
+                // next frame, so the drop indicator gets re-emitted while the
+                // monitor is bound and our pass element lands on the right
+                // monitor's render pass.
+                m->m_scheduledRecalc = true;
                 orient->tick();
+            }
         }
     });
 
